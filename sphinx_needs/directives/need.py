@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+import os
+import pathlib
+import time
 from typing import Any, Sequence
 
 from docutils import nodes
@@ -375,6 +378,7 @@ def post_process_needs_data(app: Sphinx) -> None:
     """
     needs_data = SphinxNeedsData(app.env)
     if not needs_data.needs_is_post_processed:
+        start = time.perf_counter()
         needs_config = NeedsSphinxConfig(app.config)
         needs = needs_data.get_needs_mutable()
         app.emit("needs-before-post-processing", needs)
@@ -386,6 +390,9 @@ def post_process_needs_data(app: Sphinx) -> None:
         process_constraints(needs, needs_config)
         app.emit("needs-before-sealing", needs)
         needs_data.needs_is_post_processed = True
+        duration = time.perf_counter() - start
+        with pathlib.Path(app.outdir).joinpath("times_post_process_needs_data.txt").open("a") as f:
+            f.write(f"{os.getpid()} {duration}\n")
 
 
 def process_need_nodes(app: Sphinx, doctree: nodes.document, fromdocname: str) -> None:
@@ -423,9 +430,12 @@ def format_need_nodes(
     env = app.env
     needs = SphinxNeedsData(env).get_needs_view()
 
+    times = []
+
     # We try to avoid findall as much as possibles. so we reuse the already found need nodes in the current document.
     # for node_need in doctree.findall(Need):
     for node_need in found_needs_nodes:
+        start = time.perf_counter()
         need_id = node_need.attributes["ids"][0]
         need_data = needs[need_id]
 
@@ -441,6 +451,13 @@ def format_need_nodes(
 
         rendered_node = build_need_repr(node_need, need_data, app, docname=fromdocname)
         node_need.parent.replace(node_need, rendered_node)
+
+        times.append((time.perf_counter() - start, need_id))
+
+    pid = os.getpid()
+    with pathlib.Path(app.outdir).joinpath("times_format_need_nodes2.txt").open("a") as f:
+        for _time, need_id in times:
+            f.write(f"{pid} {_time} {need_id}\n")
 
 
 def check_links(needs: NeedsMutable, config: NeedsSphinxConfig) -> None:

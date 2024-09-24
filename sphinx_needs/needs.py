@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import inspect
+import os
+import pathlib
+import time
 from timeit import default_timer as timer  # Used for timing measurements
 from typing import Any, Callable, Dict, List, Type
 
@@ -355,7 +359,17 @@ def process_creator(
                 and check_func is not None
                 and current_nodes[check_node]
             ):
+                start = time.perf_counter()
                 check_func(app, doctree, fromdocname, current_nodes[check_node])
+                duration = time.perf_counter() - start
+                n_len = len(current_nodes[check_node])
+                pid = os.getpid()
+                try:
+                    import_path = f"{inspect.getmodule(check_func).__name__}::{check_func.__name__}"
+                except Exception:
+                    import_path = f"unknown::{check_func.__name__}"
+                with pathlib.Path(app.outdir).joinpath("times_needs_process_caller.txt").open("a") as f:
+                    f.write(f"{pid} {duration} {import_path} {n_len}\n")
 
     return process_caller
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import html
 import os
+import pathlib
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Sequence, TypedDict
 
 from docutils import nodes
@@ -494,8 +496,11 @@ def process_needuml(
 ) -> None:
     env = app.env
 
+    times = []
+
     # for node in doctree.findall(Needuml):
     for node in found_nodes:
+        start = time.perf_counter()
         id = node.attributes["ids"][0]
         current_needuml = SphinxNeedsData(env).get_or_create_umls()[id]
 
@@ -562,6 +567,23 @@ def process_needuml(
             content += get_debug_node_from_puml_node(puml_node)
 
         node.replace_self(content)
+
+        duration = time.perf_counter() - start
+
+        template = "none"
+        if "failure_propagation_chain_template" in current_needuml["content"]:
+            template = "failure_propagation_chain_template"
+        elif "feature_failure_model_template" in current_needuml["content"]:
+            template = "feature_failure_model_template"
+        elif "functional_architecture_template" in current_needuml["content"]:
+            template = "functional_architecture_template"
+
+        times.append((duration, id, template))
+
+    pid = os.getpid()
+    with pathlib.Path(app.outdir).joinpath("times_process_needumls2.txt").open("a") as f:
+        for _time, id, tmp in times:
+            f.write(f"{pid} {_time} {id} {tmp}\n")
 
 
 class NeedumlException(BaseException):

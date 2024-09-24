@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
+import time
 from typing import Sequence
 from urllib.parse import urlparse
 
@@ -53,6 +55,7 @@ class NeedimportDirective(SphinxDirective):
     @measure_time("needimport")
     def run(self) -> Sequence[nodes.Node]:
         # needs_list = {}
+        start = time.perf_counter()
         version = self.options.get("version")
         filter_string = self.options.get("filter")
         id_prefix = self.options.get("id_prefix", "")
@@ -257,6 +260,9 @@ class NeedimportDirective(SphinxDirective):
             need_nodes.extend(nodes)
 
         add_doc(self.env, self.env.docname)
+
+        with pathlib.Path(self.env.app.outdir, "times_needimport.txt").open("a") as f:
+            f.write(f"{time.perf_counter() - start} {need_import_path}\n")
 
         return need_nodes
 

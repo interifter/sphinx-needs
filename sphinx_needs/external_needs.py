@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
+import time
 from functools import lru_cache
 
 import requests
@@ -32,6 +34,8 @@ def get_target_template(target_url: str) -> Template:
 def load_external_needs(app: Sphinx, env: BuildEnvironment, docname: str) -> None:
     """Load needs from configured external sources."""
     needs_config = NeedsSphinxConfig(app.config)
+    start = time.perf_counter()
+    times = []
     for source in needs_config.external_needs:
         if source["base_url"].endswith("/"):
             source["base_url"] = source["base_url"][:-1]
@@ -185,6 +189,11 @@ def load_external_needs(app: Sphinx, env: BuildEnvironment, docname: str) -> Non
                     return None
 
             add_external_need(app, **need_params)
+
+        times.append((time.perf_counter() - start, source.get("json_url", False) and source.get("json_path", False)))
+        start = time.perf_counter()
+
+    pathlib.Path(app.outdir).joinpath("times_external_needs.txt").write_text("\n".join([f"{time} {source}" for time, source in times]))
 
 
 class NeedsExternalException(BaseException):

@@ -6,6 +6,8 @@ like needtable, needlist and needflow.
 from __future__ import annotations
 
 import ast
+import os
+import pathlib
 import re
 from timeit import default_timer as timer
 from types import CodeType
@@ -238,6 +240,20 @@ def process_filters(
         "runtime": timer() - start,
     }
 
+    duration = timer() - start
+    if (not filter_code or filter_code.isspace()) and not ff_result:
+        status = str(filter_data["status"] or "_none").replace(" ", "").replace("\n", "")
+        tags = str(filter_data["tags"] or "_none").replace(" ", "").replace("\n", "")
+        types = str(filter_data["types"] or "_none").replace(" ", "").replace("\n", "")
+        filter_str = f"standard {status} {tags} {types} " + " ++ ".join(str(filter_data["filter"] or "").splitlines())
+    elif filter_code:
+        filter_str = "code " + " ++ ".join(filter_code.splitlines())
+    else:
+        filter_str = "func " + " ++ ".join(str(filter_data.get("filter_func")).splitlines())
+
+    with pathlib.Path(app.outdir, "times_process_filters.txt").open("a") as f:
+        f.write(f"{os.getpid()} {duration} {filter_str}\n")
+
     return found_needs
 
 
@@ -381,6 +397,10 @@ def filter_needs_view(
     if not filter_string:
         return list(needs.values())
 
+    result = None
+
+    start = timer()
+
     try:
         body = ast.parse(filter_string).body
     except Exception:
@@ -389,22 +409,26 @@ def filter_needs_view(
         if len(body) == 1 and isinstance((expr := body[0]), ast.Expr):
             needs, requires_eval = _analyze_and_apply_expr(needs, expr.value)
             if not requires_eval:
-                return list(needs.values())
+                result = list(needs.values())
 
-    if strict_eval:
-        # this is mainly used for testing purposes, to check if expression analysis is working
-        raise RuntimeError(
-            f"Strict eval mode, but no simple filter found: {filter_string!r}"
+    if result is None:
+        if strict_eval:
+            # this is mainly used for testing purposes, to check if expression analysis is working
+            raise RuntimeError(
+                f"Strict eval mode, but no simple filter found: {filter_string!r}"
+            )
+        result = filter_needs(
+            needs.values(),
+            config,
+            filter_string,
+            current_need,
+            location=location,
+            append_warning=append_warning,
         )
-
-    return filter_needs(
-        needs.values(),
-        config,
-        filter_string,
-        current_need,
-        location=location,
-        append_warning=append_warning,
-    )
+    duration = timer() - start
+    with pathlib.Path("/workspace/build/adas_ad_x86_gcc8_release/generated/docs/html", "times_filter_needs_view2.txt").open("a") as f:
+        f.write(f"{duration} {len(result)} {' ++ '.join((filter_string or '-').splitlines())}\n")
+    return result
 
 
 def filter_needs_parts(
@@ -420,6 +444,10 @@ def filter_needs_parts(
     if not filter_string:
         return list(needs)
 
+    result = None
+
+    start = timer()
+
     try:
         body = ast.parse(filter_string).body
     except Exception:
@@ -428,22 +456,26 @@ def filter_needs_parts(
         if len(body) == 1 and isinstance((expr := body[0]), ast.Expr):
             needs, requires_eval = _analyze_and_apply_expr(needs, expr.value)
             if not requires_eval:
-                return list(needs)
+                result = list(needs)
 
-    if strict_eval:
-        # this is mainly used for testing purposes, to check if expression analysis is working
-        raise RuntimeError(
-            f"Strict eval mode, but no simple filter found: {filter_string!r}"
+    if result is None:
+        if strict_eval:
+            # this is mainly used for testing purposes, to check if expression analysis is working
+            raise RuntimeError(
+                f"Strict eval mode, but no simple filter found: {filter_string!r}"
+            )
+        result = filter_needs(
+            needs,
+            config,
+            filter_string,
+            current_need,
+            location=location,
+            append_warning=append_warning,
         )
-
-    return filter_needs(
-        needs,
-        config,
-        filter_string,
-        current_need,
-        location=location,
-        append_warning=append_warning,
-    )
+    duration = timer() - start
+    with pathlib.Path("/workspace/build/adas_ad_x86_gcc8_release/generated/docs/html", "times_filter_needs_parts2.txt").open("a") as f:
+        f.write(f"{duration} {len(result)} {' ++ '.join((filter_string or '-').splitlines())}\n")
+    return result
 
 
 @measure_time("filtering")
